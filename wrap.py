@@ -135,7 +135,9 @@ def mapping(name):
         return "ct.c_char_p"
     if name.endswith("*") or name == "uintptr_t" or name == "intptr_t":
         return "ct.c_void_p"
-    elif name.startswith("int") or name.startswith("uint") or name == "double" or name == "float":
+    elif name.endswith("_t") and (name.startswith("int") or name.startswith("uint")):
+        return "ct.c_" + name[:-2]
+    elif name == "int" or name == "char" or name == "double" or name == "float":
         return "ct.c_" + name
     else:
         raise ValueError("don't yet know how to deal with '" + name + "'") 
@@ -157,7 +159,7 @@ for x in contents:
 if lib is None:
     raise ImportError("failed to find the """ + cmd_args.dllname + """.* module")
 
-lib.free_error_message.argtypes = [ ct.POINTER(ct.char_p) ]""")
+lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
 
     for k in all_functions.keys():
         restype, args = all_functions[k]
@@ -167,7 +169,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.char_p) ]""")
             handle.write("\n\n")
         argtypes = [mapping(x[0]) for x in args]
         argtypes.append("ct.POINTER(ct.c_int)")
-        argtypes.append("ct.POINTER(ct.char_p)")
+        argtypes.append("ct.POINTER(ct.c_char_p)")
         handle.write("lib.py_" + k + ".argtypes = [\n    " + ",\n    ".join(argtypes) + "\n]")
 
     for k in all_functions.keys():
