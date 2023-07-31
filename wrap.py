@@ -136,7 +136,7 @@ def mapping(name):
         return "ct.c_void_p"
     elif name.endswith("_t") and (name.startswith("int") or name.startswith("uint")):
         return "ct.c_" + name[:-2]
-    elif name == "int" or name == "char" or name == "double" or name == "float":
+    elif name == "int" or name == "char" or name == "double" or name == "float" or name == "size_t" or name == "ssize_t":
         return "ct.c_" + name
     else:
         raise ValueError("don't yet know how to deal with '" + name + "'") 
