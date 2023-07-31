@@ -38,10 +38,9 @@ for p in os.listdir(cmd_args.srcdir):
             elif capture:
                 combined += line.strip()
                 if line.find("{") != -1:
-                    first_space = combined.find(" ")
-                    restype = combined[:first_space].strip()
-
                     first_bracket = combined.find("(")
+                    first_space = combined.rfind(" ", 0, first_bracket)
+                    restype = combined[:first_space].strip()
                     funname = combined[first_space + 1 : first_bracket].strip()
 
                     last_bracket = combined.rfind(")")
