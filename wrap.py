@@ -1,7 +1,5 @@
 #!/usr/bin/python3
 
-import argparse
-
 # Parsing all of the C++ functions in the directory.
 import os
 import re
@@ -231,6 +229,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(
         prog='Create ctypes wrappers',
         description="""
