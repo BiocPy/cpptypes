@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+
 parser = argparse.ArgumentParser(
     prog='Create ctypes wrappers',
     description="""
@@ -19,6 +20,7 @@ cmd_args = parser.parse_args()
 # Parsing all of the C++ functions in the directory.
 import os
 import re
+
 export_regex = re.compile("^// *\\[\\[export\\]\\]")
 argname_regex = re.compile("\\s*,\\s*")
 
@@ -153,6 +155,20 @@ with open(cmd_args.pypath, "w") as handle:
 
 import os
 import ctypes as ct
+from functools import wraps
+
+def catch_errors(f):
+    @wraps(f)
+    def wrapper(*args):
+        errcode___ = ct.c_int(0)
+        errmsg___ = ct.c_char_p(0)
+        output___ = f(*args, ct.byref(errcode___), ct.byref(errmsg___))
+        if errcode___.value != 0:
+            msg = errmsg___.value.decode('ascii')
+            lib.free_error_message(errmsg___)
+            raise RuntimeError(msg)
+        return output___
+    return wrapper
 
 # TODO: surely there's a better way than whatever this is.
 dirname = os.path.dirname(os.path.abspath(__file__))
@@ -182,12 +198,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
     for k in all_function_names:
         restype, args = all_functions[k]
         argnames = [x[1] for x in args]
-        handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
-    errcode___ = ct.c_int(0)
-    errmsg___ = ct.c_char_p(0)
-    output___ = lib.py_""" + k + "(" + ", ".join(argnames) + """, ct.byref(errcode___), ct.byref(errmsg___))
-    if errcode___.value != 0:
-        msg = errmsg___.value.decode('ascii')
-        lib.free_error_message(errmsg___)
-        raise RuntimeError(msg)
-    return output___""")
+        # handle.write("\n\n@catch_errors")
+        handle.write("\ndef " + k + "(" + ", ".join(argnames) + """):
+    return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames) + """)
+    """)
