@@ -161,6 +161,7 @@ lib = None
 for x in contents:
     if x.startswith('""" + cmd_args.dllname + """') and not x.endswith("py"):
         lib = ct.CDLL(os.path.join(dirname, x))
+        break
 
 if lib is None:
     raise ImportError("failed to find the """ + cmd_args.dllname + """.* module")
