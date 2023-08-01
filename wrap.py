@@ -1,77 +1,84 @@
 #!/usr/bin/python3
 
-import argparse
-parser = argparse.ArgumentParser(
-    prog='Create ctypes wrappers',
-    description="""
-This script runs through a directory of C++ source files and pulls out all
-function definitions marked with an `// [[export]]` header. It then creates
-wrapper files in C++ and Python to bind the exported functions with correct
-types and exception handling. This mimics the behavior of `Rcpp::compile()`,
-which does the same thing for C++ bindings in R packages.""")
-
-parser.add_argument("srcdir", type=str, help="Source directory for the C++ files.")
-parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
-parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
-parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
-cmd_args = parser.parse_args()
-
 # Parsing all of the C++ functions in the directory.
 import os
 import re
 export_regex = re.compile("^// *\\[\\[export\\]\\]")
 argname_regex = re.compile("\\s*,\\s*")
 
-all_functions = {}
-for p in os.listdir(cmd_args.srcdir):
-    if not p.endswith(".cpp"):
-        continue
+def parse_cpp_exports(srcdir : str):
+    """Parse C++ source files for tagged exports.
 
-    with open(os.path.join(cmd_args.srcdir, p), "r") as handle:
-        capture = False
-        combined = ""
+    Args:
+        srcdir (str): Path to a directory of C++ source files.
 
-        for line in handle:
-            if export_regex.match(line):
-                capture = True
-                combined = "" 
-            elif capture:
-                combined += line.strip()
-                if line.find("{") != -1:
-                    first_bracket = combined.find("(")
-                    first_space = combined.rfind(" ", 0, first_bracket)
-                    restype = combined[:first_space].strip()
-                    funname = combined[first_space + 1 : first_bracket].strip()
+    Returns:
+        Dict where keys are exported function names and values
+        are a tuple of (return type, argument list).
+    """
+    all_functions = {}
+    for p in os.listdir(srcdir):
+        if not p.endswith(".cpp"):
+            continue
 
-                    last_bracket = combined.rfind(")")
-                    template_nesting = 0
-                    last_arg = first_bracket
-                    args = []
-                    for i in range(first_bracket + 1, last_bracket):
-                        if combined[i] == "<":
-                            template_nesting += 1
-                        elif combined[i] == ">":
-                            template_nesting -= 1
-                        elif combined[i] == ",":
-                            if template_nesting == 0:
-                                curarg = combined[last_arg + 1 : i].strip()
-                                argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                                args.append((curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
-                                last_arg = i
+        with open(os.path.join(srcdir, p), "r") as handle:
+            capture = False
+            combined = ""
 
-                    curarg = combined[last_arg + 1 : last_bracket].strip()
-                    argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                    args.append((curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
+            for line in handle:
+                if export_regex.match(line):
+                    capture = True
+                    combined = "" 
+                elif capture:
+                    combined += line.strip()
+                    if line.find("{") != -1:
+                        first_bracket = combined.find("(")
+                        first_space = combined.rfind(" ", 0, first_bracket)
+                        restype = combined[:first_space].strip()
+                        funname = combined[first_space + 1 : first_bracket].strip()
 
-                    all_functions[funname] = (restype, args)
-                    capture = False
+                        last_bracket = combined.rfind(")")
+                        template_nesting = 0
+                        last_arg = first_bracket
+                        args = []
+                        for i in range(first_bracket + 1, last_bracket):
+                            if combined[i] == "<":
+                                template_nesting += 1
+                            elif combined[i] == ">":
+                                template_nesting -= 1
+                            elif combined[i] == ",":
+                                if template_nesting == 0:
+                                    curarg = combined[last_arg + 1 : i].strip()
+                                    argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
+                                    args.append((curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
+                                    last_arg = i
 
-all_function_names = list(all_functions.keys())
-all_function_names.sort()
+                        curarg = combined[last_arg + 1 : last_bracket].strip()
+                        argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
+                        args.append((curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
 
-# Generating the C++ bindings for each function.
-with open(cmd_args.cpppath, "w") as handle:
-    handle.write("""/* DO NOT MODIFY: this is automatically generated by the ctypes-compiler */
+                        all_functions[funname] = (restype, args)
+                        capture = False
+
+    return all_functions
+
+def create_cpp_bindings(all_functions : dict, output_path: str):
+    """Create the C++ bindings for exported functions.
+
+    Args:
+        all_functions (dict): Dictionary as produced by `parse_cpp_exports`.
+        output_path (str): Path to store the output C++ bindings.
+
+    Returns:
+        A file is created at `output_path`. Nothing is returned.
+    """
+
+    all_function_names = list(all_functions.keys())
+    all_function_names.sort()
+
+    # Generating the C++ bindings for each function.
+    with open(output_path, "w") as handle:
+        handle.write("""/* DO NOT MODIFY: this is automatically generated by the ctypes-wrapper */
 
 #include <cstring>
 #include <stdexcept>
@@ -89,35 +96,35 @@ static char* copy_error_message(const char* original) {
     return copy;
 }""")
 
-    externC = ["""PYAPI void free_error_message(char** msg) {
+        externC = ["""PYAPI void free_error_message(char** msg) {
     delete [] *msg;
 }"""]
 
-    for k in all_function_names:
-        restype, args = all_functions[k]
+        for k in all_function_names:
+            restype, args = all_functions[k]
 
-        types_only = [x[0] for x in args]
-        handle.write("\n\n" + restype + " " + k + "(" + ", ".join(types_only) + ");")
+            types_only = [x[0] for x in args]
+            handle.write("\n\n" + restype + " " + k + "(" + ", ".join(types_only) + ");")
 
-        all_args = [x[0] + " " + x[1] for x in args]
-        all_args.append("int* errcode")
-        all_args.append("char** errmsg")
+            all_args = [x[0] + " " + x[1] for x in args]
+            all_args.append("int* errcode")
+            all_args.append("char** errmsg")
 
-        names_only = [x[1] for x in args]
-        if restype == "void":
-            init_call = ""
-            fun_call = k
-            ret_call = ""
-        else:
-            init_call = "\n" + " " * 4 + restype + " output = "
-            if restype.find("*") != -1:
-                init_call += "NULL;"
+            names_only = [x[1] for x in args]
+            if restype == "void":
+                init_call = ""
+                fun_call = k
+                ret_call = ""
             else:
-                init_call += "0;"
-            fun_call = "output = " + k
-            ret_call = "\n" + " " * 4 + "return output;" 
+                init_call = "\n" + " " * 4 + restype + " output = "
+                if restype.find("*") != -1:
+                    init_call += "NULL;"
+                else:
+                    init_call += "0;"
+                fun_call = "output = " + k
+                ret_call = "\n" + " " * 4 + "return output;" 
 
-        externC.append("PYAPI " + restype + " py_" + k + "(" + ", ".join(all_args) + ") {" + init_call + """
+            externC.append("PYAPI " + restype + " py_" + k + "(" + ", ".join(all_args) + ") {" + init_call + """
     try {
         """ + fun_call + "(" + ", ".join(names_only) + """);
     } catch(std::exception& e) {
@@ -129,10 +136,12 @@ static char* copy_error_message(const char* original) {
     }""" + ret_call + """
 }""")
 
-    handle.write("\n\nextern \"C\" {")
-    for cmd in externC:
-        handle.write("\n\n" + cmd)
-    handle.write("\n\n}\n")    
+        handle.write("\n\nextern \"C\" {")
+        for cmd in externC:
+            handle.write("\n\n" + cmd)
+        handle.write("\n\n}\n")    
+
+    return
 
 # Generating the ctypes Python bindings for each function.
 char_regex = re.compile("char *\*")
@@ -148,8 +157,23 @@ def mapping(name, fun):
     else:
         raise ValueError("don't yet know how to deal with '" + name + "' for function '" + fun + "'") 
 
-with open(cmd_args.pypath, "w") as handle:
-    handle.write("""# DO NOT MODIFY: this is automatically generated by the ctypes-compiler
+def create_py_bindings(all_functions : dict, output_path: str, dll_prefix: str):
+    """Create the Python bindings for exported functions.
+
+    Args:
+        all_functions (dict): Dictionary as produced by `parse_cpp_exports`.
+        output_path (str): Path to store the output Python bindings.
+        dll_prefix (str): Prefix of the DLL for the compiled C++ code. 
+
+    Returns:
+        A file is created at `output_path`. Nothing is returned.
+    """
+
+    all_function_names = list(all_functions.keys())
+    all_function_names.sort()
+
+    with open(output_path, "w") as handle:
+        handle.write("""# DO NOT MODIFY: this is automatically generated by the ctypes-wrapper
 
 import os
 import ctypes as ct
@@ -159,30 +183,30 @@ dirname = os.path.dirname(os.path.abspath(__file__))
 contents = os.listdir(dirname)
 lib = None
 for x in contents:
-    if x.startswith('""" + cmd_args.dllname + """') and not x.endswith("py"):
+    if x.startswith('""" + dll_prefix + """') and not x.endswith("py"):
         lib = ct.CDLL(os.path.join(dirname, x))
         break
 
 if lib is None:
-    raise ImportError("failed to find the """ + cmd_args.dllname + """.* module")
+    raise ImportError("failed to find the """ + dll_prefix + """.* module")
 
 lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
 
-    for k in all_function_names:
-        restype, args = all_functions[k]
-        if restype != "void":
-            handle.write("\n\nlib.py_" + k + ".restype = " + mapping(restype, k) + "\n")
-        else:
-            handle.write("\n\n")
-        argtypes = [mapping(x[0], k) for x in args]
-        argtypes.append("ct.POINTER(ct.c_int)")
-        argtypes.append("ct.POINTER(ct.c_char_p)")
-        handle.write("lib.py_" + k + ".argtypes = [\n    " + ",\n    ".join(argtypes) + "\n]")
+        for k in all_function_names:
+            restype, args = all_functions[k]
+            if restype != "void":
+                handle.write("\n\nlib.py_" + k + ".restype = " + mapping(restype, k) + "\n")
+            else:
+                handle.write("\n\n")
+            argtypes = [mapping(x[0], k) for x in args]
+            argtypes.append("ct.POINTER(ct.c_int)")
+            argtypes.append("ct.POINTER(ct.c_char_p)")
+            handle.write("lib.py_" + k + ".argtypes = [\n    " + ",\n    ".join(argtypes) + "\n]")
 
-    for k in all_function_names:
-        restype, args = all_functions[k]
-        argnames = [x[1] for x in args]
-        handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
+        for k in all_function_names:
+            restype, args = all_functions[k]
+            argnames = [x[1] for x in args]
+            handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
     errcode___ = ct.c_int(0)
     errmsg___ = ct.c_char_p(0)
     output___ = lib.py_""" + k + "(" + ", ".join(argnames) + """, ct.byref(errcode___), ct.byref(errmsg___))
@@ -191,3 +215,26 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
         lib.free_error_message(errmsg___)
         raise RuntimeError(msg)
     return output___""")
+
+    return
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog='Create ctypes wrappers',
+        description="""
+    This script runs through a directory of C++ source files and pulls out all
+    function definitions marked with an `// [[export]]` header. It then creates
+    wrapper files in C++ and Python to bind the exported functions with correct
+    types and exception handling. This mimics the behavior of `Rcpp::compile()`,
+    which does the same thing for C++ bindings in R packages.""")
+
+    parser.add_argument("srcdir", type=str, help="Source directory for the C++ files.")
+    parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
+    parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
+    parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
+    cmd_args = parser.parse_args()
+
+    all_functions = parse_cpp_exports(cmd_args.srcdir)
+    create_cpp_bindings(all_functions, cmd_args.cpppath)
+    create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
