@@ -2,21 +2,6 @@
 
 import argparse
 
-parser = argparse.ArgumentParser(
-    prog='Create ctypes wrappers',
-    description="""
-This script runs through a directory of C++ source files and pulls out all
-function definitions marked with an `// [[export]]` header. It then creates
-wrapper files in C++ and Python to bind the exported functions with correct
-types and exception handling. This mimics the behavior of `Rcpp::compile()`,
-which does the same thing for C++ bindings in R packages.""")
-
-parser.add_argument("srcdir", type=str, help="Source directory for the C++ files.")
-parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
-parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
-parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
-cmd_args = parser.parse_args()
-
 # Parsing all of the C++ functions in the directory.
 import os
 import re
@@ -200,14 +185,14 @@ from functools import wraps
 def catch_errors(f):
     @wraps(f)
     def wrapper(*args):
-        errcode___ = ct.c_int(0)
-        errmsg___ = ct.c_char_p(0)
-        output___ = f(*args, ct.byref(errcode___), ct.byref(errmsg___))
-        if errcode___.value != 0:
-            msg = errmsg___.value.decode('ascii')
-            lib.free_error_message(errmsg___)
+        errcode = ct.c_int(0)
+        errmsg = ct.c_char_p(0)
+        output = f(*args, ct.byref(errcode), ct.byref(errmsg))
+        if errcode.value != 0:
+            msg = errmsg.value.decode('ascii')
+            lib.free_error_message(errmsg)
             raise RuntimeError(msg)
-        return output___
+        return output
     return wrapper
 
 # TODO: surely there's a better way than whatever this is.
