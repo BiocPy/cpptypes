@@ -3,6 +3,7 @@
 # Parsing all of the C++ functions in the directory.
 import os
 import re
+
 export_regex = re.compile("^// *\\[\\[export\\]\\]")
 argname_regex = re.compile("\\s*,\\s*")
 
@@ -178,6 +179,18 @@ def create_py_bindings(all_functions : dict, output_path: str, dll_prefix: str):
 import os
 import ctypes as ct
 
+def catch_errors(f):
+    def wrapper(*args):
+        errcode = ct.c_int(0)
+        errmsg = ct.c_char_p(0)
+        output = f(*args, ct.byref(errcode), ct.byref(errmsg))
+        if errcode.value != 0:
+            msg = errmsg.value.decode('ascii')
+            lib.free_error_message(errmsg)
+            raise RuntimeError(msg)
+        return output
+    return wrapper
+
 # TODO: surely there's a better way than whatever this is.
 dirname = os.path.dirname(os.path.abspath(__file__))
 contents = os.listdir(dirname)
@@ -207,19 +220,13 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
             restype, args = all_functions[k]
             argnames = [x[1] for x in args]
             handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
-    errcode___ = ct.c_int(0)
-    errmsg___ = ct.c_char_p(0)
-    output___ = lib.py_""" + k + "(" + ", ".join(argnames) + """, ct.byref(errcode___), ct.byref(errmsg___))
-    if errcode___.value != 0:
-        msg = errmsg___.value.decode('ascii')
-        lib.free_error_message(errmsg___)
-        raise RuntimeError(msg)
-    return output___""")
+    return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames) + """)""")
 
     return
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(
         prog='Create ctypes wrappers',
         description="""

@@ -64,4 +64,3 @@ For arbitrary pointer types, remember to cast `void*` back to the appropriate ty
 
 - Not all **ctypes** types are actually supported, mostly out of laziness.
 - No support for using `byref`, this will probably require some annotation of pointer arguments, e.g., `/* byref */`.
-- Remote possibility for a name clash between Python and C++ bindings if there are triple underscores in the latter's argument names.
