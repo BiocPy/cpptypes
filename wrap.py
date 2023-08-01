@@ -220,8 +220,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
             restype, args = all_functions[k]
             argnames = [x[1] for x in args]
             handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
-    return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames) + """)
-""")
+    return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames) + """)""")
 
     return
 
