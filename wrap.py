@@ -106,7 +106,11 @@ static char* copy_error_message(const char* original) {
             fun_call = k
             ret_call = ""
         else:
-            init_call = "\n" + " " * 4 + restype + " output;"
+            init_call = "\n" + " " * 4 + restype + " output = "
+            if restype.find("*") != -1:
+                init_call += "NULL;"
+            else:
+                init_call += "0;"
             fun_call = "output = " + k
             ret_call = "\n" + " " * 4 + "return output;" 
 
