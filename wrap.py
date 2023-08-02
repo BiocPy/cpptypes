@@ -156,7 +156,7 @@ const_regex = re.compile("^const\\s+")
 signed_regex = re.compile("^signed\\s+")
 unsigned_regex = re.compile("^unsigned\\s+")
 
-def mapping(name, fun):
+def mapping(name, fun, typed_pointers):
     if const_regex.match(name):
         name = name[6:].lstrip()
 
@@ -183,17 +183,20 @@ def mapping(name, fun):
     elif void_p_regex.match(name) or name == "uintptr_t" or name == "intptr_t":
         return "ct.c_void_p"
     elif name.endswith("*"):
-        return "ct.POINTER(" + mapping(name[:-1].rstrip(), fun) + ")"
+        if typed_pointers:
+            return "ct.POINTER(" + mapping(name[:-1].rstrip(), fun, typed_pointers) + ")"
+        else:
+            return "ct.c_void_p"
 
     # Other signed/unsigned versions of non-pointer types.
     elif signed_regex.match(name):
-        return mapping(name[7:].lstrip(), fun)
+        return mapping(name[7:].lstrip(), fun, typed_pointers)
     elif unsigned_regex.match(name):
-        return mapping(name[9:].lstrip(), fun)
+        return mapping(name[9:].lstrip(), fun, typed_pointers)
 
     raise ValueError("don't yet know how to deal with '" + name + "' for function '" + fun + "'") 
 
-def create_py_bindings(all_functions : dict, output_path: str, dll_prefix: str):
+def create_py_bindings(all_functions : dict, output_path: str, dll_prefix: str, typed_pointers: bool = False):
     """Create the Python bindings for exported functions.
 
     Args:
@@ -243,10 +246,10 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
         for k in all_function_names:
             restype, args = all_functions[k]
             if restype != "void":
-                handle.write("\n\nlib.py_" + k + ".restype = " + mapping(restype, k) + "\n")
+                handle.write("\n\nlib.py_" + k + ".restype = " + mapping(restype, k, typed_pointers) + "\n")
             else:
                 handle.write("\n\n")
-            argtypes = [mapping(x[0], k) for x in args]
+            argtypes = [mapping(x[0], k, typed_pointers) for x in args]
             argtypes.append("ct.POINTER(ct.c_int32)")
             argtypes.append("ct.POINTER(ct.c_char_p)")
             handle.write("lib.py_" + k + ".argtypes = [\n    " + ",\n    ".join(argtypes) + "\n]")
@@ -275,8 +278,9 @@ if __name__ == "__main__":
     parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
     parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
     parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
+    parser.add_argument("--typedp", dest="typed_ptr", action="store_true", default=False, help="Whether pointers should be explicitly typed. If false, all pointers are considered to be void*.")
     cmd_args = parser.parse_args()
 
     all_functions = parse_cpp_exports(cmd_args.srcdir)
     create_cpp_bindings(all_functions, cmd_args.cpppath)
-    create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
+    create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname, cmd_args.typed_ptr)
