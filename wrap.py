@@ -108,7 +108,7 @@ static char* copy_error_message(const char* original) {
             handle.write("\n\n" + restype + " " + k + "(" + ", ".join(types_only) + ");")
 
             all_args = [x[0] + " " + x[1] for x in args]
-            all_args.append("int* errcode")
+            all_args.append("int32_t* errcode")
             all_args.append("char** errmsg")
 
             names_only = [x[1] for x in args]
@@ -146,10 +146,12 @@ static char* copy_error_message(const char* original) {
 
 # Generating the ctypes Python bindings for each function.
 directly_usable = set([ "int", "char", "float", "double", "long", "short", "size_t", "ssize_t", "bool" ])
+fixed_regex = re.compile("^(u)?int[0-9]+_t$")
 ll_regex = re.compile("^long\\s+long$")
 ld_regex = re.compile("^long\\s+double$")
 signed_char_regex = re.compile("^(un)?signed\\s+char$")
 char_p_regex = re.compile("^char\\s*\*$")
+void_p_regex = re.compile("^void\\s*\*$")
 const_regex = re.compile("^const\\s+")
 signed_regex = re.compile("^signed\\s+")
 unsigned_regex = re.compile("^unsigned\\s+")
@@ -159,7 +161,7 @@ def mapping(name, fun):
         name = name[6:].lstrip()
 
     # Simple numeric types.
-    if name.endswith("_t") and (name.startswith("int") or name.startswith("uint")):
+    if fixed_regex.match(name):
         return "ct.c_" + name[:-2]
     elif name in directly_usable:
         return "ct.c_" + name
@@ -178,8 +180,10 @@ def mapping(name, fun):
     # Pointer types.
     elif char_p_regex.match(name):
         return "ct.c_char_p"
-    elif name.endswith("*") or name == "uintptr_t" or name == "intptr_t":
+    elif void_p_regex.match(name) or name == "uintptr_t" or name == "intptr_t":
         return "ct.c_void_p"
+    elif name.endswith("*"):
+        return "ct.POINTER(" + mapping(name[:-1].rstrip(), fun) + ")"
 
     # Other signed/unsigned versions of non-pointer types.
     elif signed_regex.match(name):
@@ -212,7 +216,7 @@ import ctypes as ct
 
 def catch_errors(f):
     def wrapper(*args):
-        errcode = ct.c_int(0)
+        errcode = ct.c_int32(0)
         errmsg = ct.c_char_p(0)
         output = f(*args, ct.byref(errcode), ct.byref(errmsg))
         if errcode.value != 0:
@@ -243,7 +247,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
             else:
                 handle.write("\n\n")
             argtypes = [mapping(x[0], k) for x in args]
-            argtypes.append("ct.POINTER(ct.c_int)")
+            argtypes.append("ct.POINTER(ct.c_int32)")
             argtypes.append("ct.POINTER(ct.c_char_p)")
             handle.write("lib.py_" + k + ".argtypes = [\n    " + ",\n    ".join(argtypes) + "\n]")
 
