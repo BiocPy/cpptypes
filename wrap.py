@@ -145,18 +145,49 @@ static char* copy_error_message(const char* original) {
     return
 
 # Generating the ctypes Python bindings for each function.
-char_regex = re.compile("char *\*")
+directly_usable = set([ "int", "char", "float", "double", "long", "short", "size_t", "ssize_t", "bool" ])
+ll_regex = re.compile("^long\\s+long$")
+ld_regex = re.compile("^long\\s+double$")
+signed_char_regex = re.compile("^(un)?signed\\s+char$")
+char_p_regex = re.compile("^char\\s*\*$")
+const_regex = re.compile("^const\\s+")
+signed_regex = re.compile("^signed\\s+")
+unsigned_regex = re.compile("^unsigned\\s+")
+
 def mapping(name, fun):
-    if char_regex.match(name):
-        return "ct.c_char_p"
-    if name.endswith("*") or name == "uintptr_t" or name == "intptr_t":
-        return "ct.c_void_p"
-    elif name.endswith("_t") and (name.startswith("int") or name.startswith("uint")):
+    if const_regex.match(name):
+        name = name[6:].lstrip()
+
+    # Simple numeric types.
+    if name.endswith("_t") and (name.startswith("int") or name.startswith("uint")):
         return "ct.c_" + name[:-2]
-    elif name == "int" or name == "char" or name == "double" or name == "float" or name == "size_t" or name == "ssize_t":
+    elif name in directly_usable:
         return "ct.c_" + name
-    else:
-        raise ValueError("don't yet know how to deal with '" + name + "' for function '" + fun + "'") 
+    elif ll_regex.match(name):
+        return "ct.c_longlong"
+    elif ld_regex.match(name):
+        return "ct.c_longdouble"
+
+    # '(un)signed char' have different names.
+    elif signed_char_regex.match(name):
+        if name.startswith("unsigned"):
+            return "ct.c_ubyte"
+        elif name.startswith("signed"):
+            return "ct.c_byte"
+
+    # Pointer types.
+    elif char_p_regex.match(name):
+        return "ct.c_char_p"
+    elif name.endswith("*") or name == "uintptr_t" or name == "intptr_t":
+        return "ct.c_void_p"
+
+    # Other signed/unsigned versions of non-pointer types.
+    elif signed_regex.match(name):
+        return mapping(name[7:].lstrip(), fun)
+    elif unsigned_regex.match(name):
+        return mapping(name[9:].lstrip(), fun)
+
+    raise ValueError("don't yet know how to deal with '" + name + "' for function '" + fun + "'") 
 
 def create_py_bindings(all_functions : dict, output_path: str, dll_prefix: str):
     """Create the Python bindings for exported functions.
