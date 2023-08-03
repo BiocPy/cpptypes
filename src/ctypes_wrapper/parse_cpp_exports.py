@@ -4,6 +4,7 @@ import re
 export_regex = re.compile("^// *\\[\\[export\\]\\]")
 comment_regex = re.compile("//")
 
+
 class CppType:
     def __init__(self, full_type, base_type, pointer_level, tags):
         self.full_type = full_type
@@ -21,14 +22,14 @@ class CppType:
         tags = []
 
         while i < N:
-            if full_type[i] == '/' and full_type[i + 1] == '*':
+            if full_type[i] == "/" and full_type[i + 1] == "*":
                 bits += full_type[last:i]
                 i += 2
                 start = i
                 terminated = False
 
                 while i + 1 < N:
-                    if full_type[i] == '*' and full_type[i + 1] == '/':
+                    if full_type[i] == "*" and full_type[i + 1] == "/":
                         terminated = True
                         break
                     i += 1
@@ -36,14 +37,14 @@ class CppType:
                 if not terminated:
                     raise ValueError("unterminated comment in type '" + full_type + "'")
 
-                if full_type[start] == '*':
-                    tagset = full_type[start + 1:i]
+                if full_type[start] == "*":
+                    tagset = full_type[start + 1 : i]
                     tags += tagset.split()
 
                 i += 2
                 last = i
             else:
-                i+=1
+                i += 1
 
         bits += full_type[last:i]
 
@@ -51,7 +52,7 @@ class CppType:
         fragments = bits.split()
         base_type = []
         pointers = 0
-        right_pointers = False 
+        right_pointers = False
 
         for x in fragments:
             while x and x.startswith("*"):
@@ -71,7 +72,8 @@ class CppType:
 
             base_type.append(x)
 
-        return cls(full_type, ' '.join(base_type), pointers, tags)
+        return cls(full_type, " ".join(base_type), pointers, tags)
+
 
 class CppArgument:
     def __init__(self, name, type):
@@ -82,7 +84,8 @@ class CppArgument:
     def create(cls, name, full_type):
         return cls(name, CppType.create(full_type))
 
-def parse_cpp_exports(srcdir : str):
+
+def parse_cpp_exports(srcdir: str):
     """Parse C++ source files for tagged exports.
 
     Args:
@@ -104,13 +107,13 @@ def parse_cpp_exports(srcdir : str):
             for line in handle:
                 if export_regex.match(line):
                     capture = True
-                    combined = "" 
+                    combined = ""
 
                 elif capture:
                     # Remove comments.
                     comment_found = comment_regex.search(line)
                     if comment_found:
-                        line = line[:comment_found.pos]
+                        line = line[: comment_found.pos]
 
                     combined += line.strip()
                     if line.find("{") != -1:
@@ -131,16 +134,31 @@ def parse_cpp_exports(srcdir : str):
                             elif combined[i] == ",":
                                 if template_nesting == 0:
                                     curarg = combined[last_arg + 1 : i].strip()
-                                    argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                                    args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
+                                    argname_start = max(
+                                        curarg.rfind(" "),
+                                        curarg.rfind("*"),
+                                        curarg.rfind("&"),
+                                    )
+                                    args.append(
+                                        CppArgument.create(
+                                            curarg[argname_start + 1 :].strip(),
+                                            curarg[:argname_start].strip(),
+                                        )
+                                    )
                                     last_arg = i
 
                         curarg = combined[last_arg + 1 : last_bracket].strip()
-                        argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                        args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
+                        argname_start = max(
+                            curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&")
+                        )
+                        args.append(
+                            CppArgument.create(
+                                curarg[argname_start + 1 :].strip(),
+                                curarg[:argname_start].strip(),
+                            )
+                        )
 
                         all_functions[funname] = (CppType.create(restype), args)
                         capture = False
 
     return all_functions
-
