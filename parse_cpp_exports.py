@@ -5,10 +5,10 @@ export_regex = re.compile("^// *\\[\\[export\\]\\]")
 comment_regex = re.compile("//")
 
 class CppType:
-    def __init__(self, full_type, base_type, pointer_levels, tags):
+    def __init__(self, full_type, base_type, pointer_level, tags):
         self.full_type = full_type
         self.base_type = base_type
-        self.pointer_levels = pointer_levels
+        self.pointer_level = pointer_level
         self.tags = set(tags)
 
     @classmethod
