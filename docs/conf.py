@@ -106,7 +106,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "ctypes-wrapper"
-copyright = "2023, Jayaram Kancherla"
+copyright = "2023, Aaron Lun"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -264,7 +264,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", "user_guide.tex", "ctypes-wrapper Documentation", "Jayaram Kancherla", "manual")
+    ("index", "user_guide.tex", "ctypes-wrapper Documentation", "Aaron Lun", "manual")
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
