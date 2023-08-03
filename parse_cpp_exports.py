@@ -1,7 +1,7 @@
 import os
 import re
 
-export_regex = re.compile("^// *\\[\\[export\\]\\]")
+export_regex = re.compile("^\\s*//\\s*\\[\\[export\\]\\]")
 comment_regex = re.compile("//")
 
 class CppType:
@@ -12,43 +12,7 @@ class CppType:
         self.tags = set(tags)
 
     @classmethod
-    def create(cls, full_type):
-        # Parsing out the inline comments, which might contain tags.
-        bits = ""
-        i = 0
-        last = 0
-        N = len(full_type)
-        tags = []
-
-        while i < N:
-            if full_type[i] == '/' and full_type[i + 1] == '*':
-                bits += full_type[last:i]
-                i += 2
-                start = i
-                terminated = False
-
-                while i + 1 < N:
-                    if full_type[i] == '*' and full_type[i + 1] == '/':
-                        terminated = True
-                        break
-                    i += 1
-
-                if not terminated:
-                    raise ValueError("unterminated comment in type '" + full_type + "'")
-
-                if full_type[start] == '*':
-                    tagset = full_type[start + 1:i]
-                    tags += tagset.split()
-
-                i += 2
-                last = i
-            else:
-                i+=1
-
-        bits += full_type[last:i]
-
-        # Now deconvolving the remaining bits and pieces.
-        fragments = bits.split()
+    def create(cls, fragments, tags):
         base_type = []
         pointers = 0
         right_pointers = False 
@@ -67,11 +31,11 @@ class CppType:
                 continue
 
             if right_pointers and len(base_type):
-                raise ValueError("pointer parsing failure for type '" + full_type + "'")
+                raise ValueError("pointer parsing failure for type '" + ' '.join(fragments) + "'")
 
             base_type.append(x)
 
-        return cls(full_type, ' '.join(base_type), pointers, tags)
+        return cls(' '.join(fragments), ' '.join(base_type), pointers, tags)
 
 class CppArgument:
     def __init__(self, name, type):
@@ -79,8 +43,190 @@ class CppArgument:
         self.type = type
 
     @classmethod
-    def create(cls, name, full_type):
-        return cls(name, CppType.create(full_type))
+    def create(cls, name, fragments, tags):
+        return cls(name, CppType.create(fragments, tags))
+
+class ExportTraverser:
+    def __init__(self, handle):
+        self.handle = handle
+        self.line = ""
+        self.position = 0
+
+    def next(self):
+        if self.position == len(self.line):
+            self.line = self.handle.readline()
+            self.position = 0
+            if not self.line:
+                raise ValueError("reached end of the file with an unterminated export")
+        old = self.position
+        self.position += 1
+        return self.line[old]
+
+    def back(): # this can only be called once after calling next().
+        self.position -= 1
+
+def parse_cpp_file(path: str, all_functions: dict):
+    with open(path, "r") as handle:
+        while True:
+            line = handle.readline()
+            if not line:
+                break
+
+            if not export_regex.match(line):
+                continue
+
+            grabber = ExportTraverser(handle)
+
+            # Pulling out the result type and name, until the first parenthesis.
+            current = ""
+            chunks = []
+
+            while True:
+                x = grabber.next()
+
+                if x.isspace():
+                    if current:
+                        chunks.append(current)
+                        current = ""
+
+                elif x == "/":
+                    x = grabber.next()
+
+                    # Comments terminate any existing chunk.
+                    if x == "/" or x == "*":
+                        if current:
+                            chunks.append(current)
+                            current = ""
+
+                    # Now we have to consume the rest.
+                    if x == "/":
+                        while True:
+                            if grabber.next() == '\n':
+                                break
+                    elif x == "*": 
+                        add()
+                        while True:
+                            if grabber.next() == "*":
+                                if grabber.next() == "/":
+                                    break
+                    else:
+                        raise ValueError("failed to parse result type or function name at '" + grabber.line + "'")
+
+                elif x == "(":
+                    chunks.append(current)
+                    break
+
+                else:
+                    current += x
+
+            funname = chunks.pop()
+            restype = CppType.create(chunks, [])
+
+            # Now pulling out the argument names, until the last (unnested) parenthesis.
+            current = ""
+            chunks = []
+            tags = []
+            all_args = []
+            angle_nesting = 0
+            curve_nesting = 0
+
+            while True:
+                x = grabber.next()
+
+                if x.isspace():
+                    if curve_nesting or angle_nesting:
+                        current += x
+                    elif current:
+                        chunks.append(current)
+                        current = ""
+
+                elif x == "/":
+                    x = grabber.next()
+
+                    # Comments terminate any existing chunk.
+                    if x == "/" or x == "*":
+                        if curve_nesting or angle_nesting:
+                            current += x
+                        elif current:
+                            chunks.append(current)
+                            current = ""
+
+                    if x == "/":
+                        while True:
+                            if grabber.next() == '\n':
+                                break
+
+                    elif x == "*": 
+                        x = grabber.next()
+
+                        # We're inside a tag-enabled comment at the base nesting level, so we need to parse the tags.
+                        if x == "*" and not curve_nesting and not angle_nesting: 
+                            curtag = ""
+                            while True:
+                                x = grabber.next()
+                                if x.isspace():
+                                    if curtag:
+                                        tags.append(curtag)
+                                        curtag = ""
+                                elif x == "*":
+                                    y = grabber.next()
+                                    if y == "/":
+                                        if curtag:
+                                            tags.append(curtag)
+                                        break
+                                    else:
+                                        curtag += x
+                                        grabber.back() # put it back for looping, as it might be a space.
+                                else:
+                                    curtag += x
+
+                        else: # otherwise just consuming the entire thing
+                            grabber.back()
+                            while True:
+                                if grabber.next() == "*":
+                                    if grabber.next() == "/":
+                                        break
+
+                    else:
+                        raise ValueError("failed to parse result type or function name at '" + grabber.line + "'")
+
+
+                elif x == "<": # deal with templates.
+                    angle_nesting += 1
+                    current += x
+
+                elif x == ">":
+                    if angle_nesting == 0:
+                        raise ValueError("imbalanced angle brackets at '" + grabber.line + "'")
+                    angle_nesting -= 1
+                    current += x
+
+                elif x == "(":
+                    curve_nesting += 1
+                    current += x
+
+                elif x == ")":
+                    if curve_nesting == 0:
+                        if angle_nesting != 0:
+                            raise ValueError("imbalanced angle brackets at '" + grabber.line + "'")
+                        all_args.append(CppArgument.create(current, chunks, tags))
+                        break
+                    curve_nesting -= 1
+                    current += x
+
+                elif x== ",":
+                    if curve_nesting or angle_nesting:
+                        current += x
+                    else:
+                        all_args.append(CppArgument.create(current, chunks, tags))
+                        current = ""
+                        chunks = []
+                        tags = []
+
+                else:
+                    current += x
+
+            all_functions[funname] = (restype, all_args)
 
 def parse_cpp_exports(srcdir : str):
     """Parse C++ source files for tagged exports.
@@ -96,51 +242,5 @@ def parse_cpp_exports(srcdir : str):
     for p in os.listdir(srcdir):
         if not p.endswith(".cpp"):
             continue
-
-        with open(os.path.join(srcdir, p), "r") as handle:
-            capture = False
-            combined = ""
-
-            for line in handle:
-                if export_regex.match(line):
-                    capture = True
-                    combined = "" 
-
-                elif capture:
-                    # Remove comments.
-                    comment_found = comment_regex.search(line)
-                    if comment_found:
-                        line = line[:comment_found.pos]
-
-                    combined += line.strip()
-                    if line.find("{") != -1:
-                        first_bracket = combined.find("(")
-                        first_space = combined.rfind(" ", 0, first_bracket)
-                        restype = combined[:first_space].strip()
-                        funname = combined[first_space + 1 : first_bracket].strip()
-
-                        last_bracket = combined.rfind(")")
-                        template_nesting = 0
-                        last_arg = first_bracket
-                        args = []
-                        for i in range(first_bracket + 1, last_bracket):
-                            if combined[i] == "<":
-                                template_nesting += 1
-                            elif combined[i] == ">":
-                                template_nesting -= 1
-                            elif combined[i] == ",":
-                                if template_nesting == 0:
-                                    curarg = combined[last_arg + 1 : i].strip()
-                                    argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                                    args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
-                                    last_arg = i
-
-                        curarg = combined[last_arg + 1 : last_bracket].strip()
-                        argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                        args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
-
-                        all_functions[funname] = (CppType.create(restype), args)
-                        capture = False
-
+        parse_cpp_file(os.path.join(srcdir, p), all_functions)
     return all_functions
-
