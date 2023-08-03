@@ -136,9 +136,11 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
             handle.write("""
 
 import numpy as np
-def np2ct(x, contiguous=True):
+def np2ct(x, expected, contiguous=True):
     if not isinstance(x, np.ndarray):
         raise ValueError('expected a NumPy array')
+    if x.dtype != expected:
+        raise ValueError('expected a NumPy array of type ' + str(expected) + ', got ' + str(x.dtype))
     if contiguous:
         if not x.flags.c_contiguous and not x.flags.f_contiguous:
             raise ValueError('only contiguous NumPy arrays are supported')
@@ -174,7 +176,11 @@ def np2ct(x, contiguous=True):
                 argnames2 = []
                 for x in args:
                     if with_numpy and "numpy" in x.type.tags:
-                        args = ""
+                        args = ", np." 
+                        if fixed_regex.match(x.type.base_type):
+                            args += x.type.base_type[:-2]
+                        else:
+                            args += x.type.base_type
                         if "non_contig" in x.type.tags:
                             args += ", contiguous=False"
                         argnames2.append("np2ct(" + x.name + args + ")")
