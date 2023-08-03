@@ -44,30 +44,34 @@ def convert_base_type(name):
     raise ValueError("don't yet know how to deal with type '" + name + "'")
 
 
-unsupported_bases = set(["uintptr_t", "intptr_t", "void"])
-
-
-def use_void_p(x):
-    if x.pointer_level:
-        if x.pointer_level > 1 or x.base_type in unsupported_bases:
-            return True
-    return "as_void_p" in x.tags
+unsupported_pointer_bases = set(["uintptr_t", "intptr_t", "void"])
 
 
 def map_cpp_type(x):
-    if use_void_p(x):
-        return "ct.c_void_p"
+    if x.pointer_level:
+        if "void_p" in x.tags or "numpy" in x.tags:
+            return "ct.c_void_p"
 
-    elif x.pointer_level:
-        if x.base_type == "char":
-            return "ct.c_char_p"
+        pl = x.pointer_level
+        core = ""
+
+        if x.base_type in unsupported_pointer_bases:
+            pl -= 1
+            core = "ct.c_void_p"
+
+        elif x.base_type == "char":
+            pl -= 1
+            core = "ct.c_char_p"
 
         else:
             try:
                 core = convert_base_type(x.base_type)
             except Exception as exc:
                 raise ValueError("failed to parse type '" + x.full_type + "'") from exc
-            return "ct.POINTER(" + core + ")"
+
+        for i in range(pl):
+            core = "ct.POINTER(" + core + ")"
+        return core
 
     else:
         try:
@@ -76,9 +80,7 @@ def map_cpp_type(x):
             raise ValueError("failed to parse type '" + x.full_type + "'") from exc
 
 
-def create_py_bindings(
-    all_functions: dict, output_path: str, dll_prefix: str, with_numpy: bool = True
-):
+def create_py_bindings(all_functions: dict, output_path: str, dll_prefix: str):
     """Create the Python bindings for exported functions.
 
     Args:
@@ -92,6 +94,14 @@ def create_py_bindings(
 
     all_function_names = list(all_functions.keys())
     all_function_names.sort()
+
+    with_numpy = False
+    for x in all_function_names:
+        restype, args = all_functions[x]
+        for y in args:
+            if "numpy" in y.type.tags:
+                with_numpy = True
+                break
 
     with open(output_path, "w") as handle:
         handle.write(
@@ -136,16 +146,15 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]"""
                 """
 
 import numpy as np
-def np2ct(x, typed=True, contiguous=True):
+def np2ct(x, expected, contiguous=True):
     if not isinstance(x, np.ndarray):
-        return x
+        raise ValueError('expected a NumPy array')
+    if x.dtype != expected:
+        raise ValueError('expected a NumPy array of type ' + str(expected) + ', got ' + str(x.dtype))
     if contiguous:
         if not x.flags.c_contiguous and not x.flags.f_contiguous:
             raise ValueError('only contiguous NumPy arrays are supported')
-    if typed:
-        return x.ctypes.data_as(ct.POINTER(np.ctypeslib.as_ctypes_type(x.dtype)))
-    else:
-        return x.ctypes.data"""
+    return x.ctypes.data"""
             )
 
         for k in all_function_names:
@@ -185,15 +194,12 @@ def np2ct(x, typed=True, contiguous=True):
             if with_numpy:
                 argnames2 = []
                 for x in args:
-                    if (
-                        with_numpy
-                        and x.type.pointer_level
-                        and x.type.base_type != "char"
-                        and x.type.base_type != "void"
-                    ):
-                        args = ""
-                        if use_void_p(x.type):
-                            args += ", typed=False"
+                    if with_numpy and "numpy" in x.type.tags:
+                        args = ", np."
+                        if fixed_regex.match(x.type.base_type):
+                            args += x.type.base_type[:-2]
+                        else:
+                            args += x.type.base_type
                         if "non_contig" in x.type.tags:
                             args += ", contiguous=False"
                         argnames2.append("np2ct(" + x.name + args + ")")

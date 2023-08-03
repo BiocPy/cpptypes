@@ -1,5 +1,3 @@
-
-
 def create_cpp_bindings(all_functions: dict, output_path: str):
     """Create the C++ bindings for exported functions.
 
