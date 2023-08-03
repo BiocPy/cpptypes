@@ -39,28 +39,28 @@ static char* copy_error_message(const char* original) {
         for k in all_function_names:
             restype, args = all_functions[k]
 
-            types_only = [x.full_type for x in args]
-            handle.write("\n\n" + restype + " " + k + "(" + ", ".join(types_only) + ");")
+            types_only = [x.type.full_type for x in args]
+            handle.write("\n\n" + restype.full_type + " " + k + "(" + ", ".join(types_only) + ");")
 
-            all_args = [x.full_type + " " + x.name for x in args]
+            all_args = [x.type.full_type + " " + x.name for x in args]
             all_args.append("int32_t* errcode")
             all_args.append("char** errmsg")
 
             names_only = [x.name for x in args]
-            if restype == "void":
+            if restype.base_type == "void" and restype.pointer_level == 0:
                 init_call = ""
                 fun_call = k
                 ret_call = ""
             else:
-                init_call = "\n" + " " * 4 + restype + " output = "
-                if restype.find("*") != -1:
+                init_call = "\n" + " " * 4 + restype.full_type + " output = "
+                if restype.pointer_level:
                     init_call += "NULL;"
                 else:
                     init_call += "0;"
                 fun_call = "output = " + k
                 ret_call = "\n" + " " * 4 + "return output;" 
 
-            externC.append("PYAPI " + restype + " py_" + k + "(" + ", ".join(all_args) + ") {" + init_call + """
+            externC.append("PYAPI " + restype.full_type + " py_" + k + "(" + ", ".join(all_args) + ") {" + init_call + """
     try {
         """ + fun_call + "(" + ", ".join(names_only) + """);
     } catch(std::exception& e) {

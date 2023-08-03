@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-from .parse_cpp_exports import *
-from .create_cpp_bindings import *
-from .create_py_bindings import *
+import parse_cpp_exports as p1
+import create_cpp_bindings as c1
+import create_py_bindings as c2
 
 if __name__ == "__main__":
     import argparse
@@ -20,10 +20,9 @@ if __name__ == "__main__":
     parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
     parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
     parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
-    parser.add_argument("--typedp", dest="typed_ptr", action="store_true", default=False, help="Whether pointers should be explicitly typed. If false, all pointers are considered to be void*.")
-    parser.add_argument("--numpy", dest="auto_numpy", action="store_true", default=False, help="Whether Numpy bindings should be auto-generated. This allows contiguous NumPy arrays to be directly passed to the generated functions.")
+    parser.add_argument("--numpy", dest="with_numpy", action="store_true", default=True, help="Whether to automatically convert NumPy arrays to typed pointers.")
     cmd_args = parser.parse_args()
 
-    all_functions = parse_cpp_exports(cmd_args.srcdir)
-    create_cpp_bindings(all_functions, cmd_args.cpppath)
-    create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname, typed_pointers = cmd_args.typed_ptr, auto_numpy = cmd_args.auto_numpy)
+    all_functions = p1.parse_cpp_exports(cmd_args.srcdir)
+    c1.create_cpp_bindings(all_functions, cmd_args.cpppath)
+    c2.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname, with_numpy = cmd_args.with_numpy)

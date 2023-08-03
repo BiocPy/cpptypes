@@ -12,7 +12,7 @@ class CppType:
         self.tags = set(tags)
 
     @classmethod
-    def create(full_type):
+    def create(cls, full_type):
         # Parsing out the inline comments, which might contain tags.
         bits = ""
         i = 0
@@ -36,12 +36,14 @@ class CppType:
                 if not terminated:
                     raise ValueError("unterminated comment in type '" + full_type + "'")
 
-                if full_type[start] == '*'
+                if full_type[start] == '*':
                     tagset = full_type[start + 1:i]
                     tags += tagset.split()
 
                 i += 2
                 last = i
+            else:
+                i+=1
 
         bits += full_type[last:i]
 
@@ -49,22 +51,27 @@ class CppType:
         fragments = bits.split()
         base_type = []
         pointers = 0
-        not_pointer = True
+        right_pointers = False 
+
         for x in fragments:
-            if x == "const":
+            while x and x.startswith("*"):
+                pointers += 1
+                x = x[1:].lstrip()
+
+            while x and x.endswith("*"):
+                right_pointers = True
+                pointers += 1
+                x = x[:-1].rstrip()
+
+            if not x or x == "const":
                 continue
 
-            if x.startswith("*"):
-                for i in x:
-                    if i != "*":
-                        raise ValueError("parsing error for type '" + full_type + "'")
-                    pointers += 1
-            else:
-                if pointers > 0:
-                    raise ValueError("parsing error for type '" + full_type + "'")
-                base_type.append(x)
+            if right_pointers and len(base_type):
+                raise ValueError("pointer parsing failure for type '" + full_type + "'")
 
-        return CppType(full_type, ' '.join(base_type), pointers, tags)
+            base_type.append(x)
+
+        return cls(full_type, ' '.join(base_type), pointers, tags)
 
 class CppArgument:
     def __init__(self, name, type):
@@ -72,8 +79,8 @@ class CppArgument:
         self.type = type
 
     @classmethod
-    def create(name, full_type):
-        return CppArgument(name, CppType.create(full_type))
+    def create(cls, name, full_type):
+        return cls(name, CppType.create(full_type))
 
 def parse_cpp_exports(srcdir : str):
     """Parse C++ source files for tagged exports.
@@ -125,12 +132,12 @@ def parse_cpp_exports(srcdir : str):
                                 if template_nesting == 0:
                                     curarg = combined[last_arg + 1 : i].strip()
                                     argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                                    args.append(CppArgument.create(curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
+                                    args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
                                     last_arg = i
 
                         curarg = combined[last_arg + 1 : last_bracket].strip()
                         argname_start = max(curarg.rfind(" "), curarg.rfind("*"), curarg.rfind("&"))
-                        args.append(CppArgument.create(curarg[:argname_start].strip(), curarg[argname_start + 1:].strip()))
+                        args.append(CppArgument.create(curarg[argname_start + 1:].strip(), curarg[:argname_start].strip()))
 
                         all_functions[funname] = (CppType.create(restype), args)
                         capture = False
