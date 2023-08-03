@@ -36,31 +36,75 @@ cxx.multiply(1, 2)
 
 ## Handling pointers
 
-Pointers to base types (or `void`) are also supported.
-For simplicity, we do not support arbitrary pointer types as otherwise we would need to include the header definitions in the `bindings.cpp` file and that would be tedious to track.
+Pointers to base types (or `void`) are supported and will be bound with the appropriate **ctypes** pointer type.
 
 ```cpp
 //[[export]]
-void* create_complex_object(int* int_array, double* more_array) {
-    return reinterpret_cast<void*>(new Something(int_array, more_array));
+void* create_complex_object(int* my_int, double* my_dbl) {
+    return reinterpret_cast<void*>(new Something(my_int, my_dbl));
 }
 ```
 
-And then, in Python:
+And then, in Python (assuming we called our Python bindings file `bindings.py`):
 
 ```py
-# Mocking up some arrays:
-import numpy as np
-iarr = (np.random.rand(100) * 10).astype(int)
-marr = np.random.rand(100).astype(np.double)
+import ctypes 
+x = ctypes.c_int(100)
+y = ctypes.c_double(200)
 
-ptr = cxx.create_complex_object(iarr.ctypes.data, marr.ctypes.data)
+from .bindings import * as cxx
+ptr = cxx.create_complex_object(ctypes.byref(x), ctypes.pointer(y))
 ```
 
-This will be represented as a (usually 64-bit) integer in Python that can be passed back to C++.
-For arbitrary pointer types, remember to cast `void*` back to the appropriate type before doing stuff with it.
+Void pointers are represented as a (usually 64-bit) integer in Python that can be passed back to C++.
+Remember to cast `void*` back to the appropriate type before doing stuff with it!
+(For simplicity, we do not support arbitrary pointer types as otherwise we would need to include the header definitions in the `bindings.cpp` file and that would be tedious to track.)
+
+If you want the **ctypes** bindings to treat pointers to base types as `void*`, you can tag the argument with `void_p`.
+This means that you can directly pass integer addresses to `my_int` and `my_dbl` in Python rather than casting them to a `ctypes.POINTER` type.
+
+```cpp
+//[[export]]
+void* create_complex_object2(int* my_int /** void_p */, double* my_dbl /** void_p */) {
+    return reinterpret_cast<void*>(new Something(my_int, my_dbl));
+}
+```
+
+**Note on tags:**
+Arguments can be tagged with a `/** xxx yyy zzz */` comment, consisting of space-separated tags that determine how the type should be handled in the wrappers.
+(The double `**` is important to distinguish from non-tag comments.)
+The tag-containing comment can be inserted anywhere in or next to the argument, e.g., before the type, between the type and the name, after the name but before the comma/parenthesis.
+The result type for the function can also be tagged in the same manner.
+
+## Handling NumPy arrays
+
+If we know a certain pointer is derived from a NumPy array, we can add the `numpy` tag to automate type checking and address extraction.
+
+```cpp
+//[[export]]
+void* create_complex_object3(int32_t* my_int /** numpy */, double* my_dbl /** numpy */) {
+    return reinterpret_cast<void*>(new Something(my_int, my_dbl));
+}
+```
+
+Then, in Python, we can just pass the arrays directly to the bound function:
+
+```py
+import numpy
+x = numpy.random.rand(1000).astype(numpy.int32)
+y = numpy.random.rand(1000).astype(numpy.double)
+cxx.create_complex_object3(x, y)
+```
+
+This will check that the NumPy arrays correspond to the specified type before calling the C++ function.
+It is best to use fixed-width integers rather than relying on machine-dependent aliases like `int`, `short`, etc.
+
+The wrapper functions will also check that the arrays are contiguous in memory.
+If you want to support non-contiguous arrays, add the `non_contig` tag to the relevant arguments.
+
+The `numpy` tag is only relevant to function arguments and not return values.
+Use the `numpy.ctypeslib.as_array()` function to convert a **ctypes** pointer to a **numpy** array of the relevant type.
 
 ## Known limitations
 
 - Not all **ctypes** types are actually supported, mostly out of laziness.
-- No support for using `byref`, this will probably require some annotation of pointer arguments, e.g., `/* byref */`.
