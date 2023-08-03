@@ -20,9 +20,8 @@ if __name__ == "__main__":
     parser.add_argument("--py", dest="pypath", type=str, default="ctypes_bindings.py", help="Output path for the Python-side bindings.")
     parser.add_argument("--cpp", dest="cpppath", type=str, default="ctypes_bindings.cpp", help="Output path for the C++-side bindings.")
     parser.add_argument("--dll", dest="dllname", type=str, default="core", help="Prefix of the DLL.")
-    parser.add_argument("--numpy", dest="with_numpy", action="store_true", default=True, help="Whether to automatically convert NumPy arrays to typed pointers.")
     cmd_args = parser.parse_args()
 
     all_functions = p1.parse_cpp_exports(cmd_args.srcdir)
     c1.create_cpp_bindings(all_functions, cmd_args.cpppath)
-    c2.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname, with_numpy = cmd_args.with_numpy)
+    c2.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)

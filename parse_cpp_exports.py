@@ -62,8 +62,53 @@ class ExportTraverser:
         self.position += 1
         return self.line[old]
 
-    def back(): # this can only be called once after calling next().
+    def get(self):
+        return self.line[self.position]
+
+    def back(self): # this can only be called once after calling next().
         self.position -= 1
+
+def parse_comment(grabber: ExportTraverser, tags: list, nested: bool):
+    x = grabber.get()
+    if x == "/":
+        while True:
+            if grabber.next() == '\n':
+                break
+
+    elif x == "*": 
+        x = grabber.next()
+
+        # We're inside a tag-enabled comment at the base nesting level, so we need to parse the tags.
+        if x == "*" and not nested:
+            curtag = ""
+            while True:
+                x = grabber.next()
+                if x.isspace():
+                    if curtag:
+                        tags.append(curtag)
+                        curtag = ""
+                elif x == "*":
+                    y = grabber.next()
+                    if y == "/":
+                        if curtag:
+                            tags.append(curtag)
+                        break
+                    else:
+                        curtag += x
+                        grabber.back() # put it back for looping, as it might be a space.
+                else:
+                    curtag += x
+
+        # Otherwise, just consuming the entire thing
+        else: 
+            grabber.back()
+            while True:
+                if grabber.next() == "*":
+                    if grabber.next() == "/":
+                        break
+
+    else:
+        raise ValueError("failed to parse comment at '" + grabber.line + "'")
 
 def parse_cpp_file(path: str, all_functions: dict):
     with open(path, "r") as handle:
@@ -80,6 +125,10 @@ def parse_cpp_file(path: str, all_functions: dict):
             # Pulling out the result type and name, until the first parenthesis.
             current = ""
             chunks = []
+            tags = []
+            angle_nesting = 0
+            curve_nesting = 0
+            funname = None
 
             while True:
                 x = grabber.next()
@@ -98,29 +147,37 @@ def parse_cpp_file(path: str, all_functions: dict):
                             chunks.append(current)
                             current = ""
 
-                    # Now we have to consume the rest.
-                    if x == "/":
-                        while True:
-                            if grabber.next() == '\n':
-                                break
-                    elif x == "*": 
-                        add()
-                        while True:
-                            if grabber.next() == "*":
-                                if grabber.next() == "/":
-                                    break
-                    else:
-                        raise ValueError("failed to parse result type or function name at '" + grabber.line + "'")
+                    parse_comment(grabber, tags, curve_nesting or angle_nesting)
+
+                elif x == "<": # deal with templates.
+                    angle_nesting += 1
+                    current += x
+
+                elif x == ">":
+                    if angle_nesting == 0:
+                        raise ValueError("imbalanced angle brackets at '" + grabber.line + "'")
+                    angle_nesting -= 1
+                    current += x
 
                 elif x == "(":
-                    chunks.append(current)
-                    break
+                    if curve_nesting == 0 and angle_nesting == 0:
+                        if current == "": # e.g., if there's a space between the name and '('.
+                            current = chunks.pop()
+                        funname = current
+                        break
+                    curve_nesting += 1
+                    current += x
+
+                elif x == ")":
+                    if curve_nesting == 0:
+                        raise ValueError("imbalanced parentheses at '" + grabber.line + "'")
+                    curve_nesting -= 1
+                    current += x
 
                 else:
                     current += x
 
-            funname = chunks.pop()
-            restype = CppType.create(chunks, [])
+            restype = CppType.create(chunks, tags)
 
             # Now pulling out the argument names, until the last (unnested) parenthesis.
             current = ""
@@ -151,45 +208,7 @@ def parse_cpp_file(path: str, all_functions: dict):
                             chunks.append(current)
                             current = ""
 
-                    if x == "/":
-                        while True:
-                            if grabber.next() == '\n':
-                                break
-
-                    elif x == "*": 
-                        x = grabber.next()
-
-                        # We're inside a tag-enabled comment at the base nesting level, so we need to parse the tags.
-                        if x == "*" and not curve_nesting and not angle_nesting: 
-                            curtag = ""
-                            while True:
-                                x = grabber.next()
-                                if x.isspace():
-                                    if curtag:
-                                        tags.append(curtag)
-                                        curtag = ""
-                                elif x == "*":
-                                    y = grabber.next()
-                                    if y == "/":
-                                        if curtag:
-                                            tags.append(curtag)
-                                        break
-                                    else:
-                                        curtag += x
-                                        grabber.back() # put it back for looping, as it might be a space.
-                                else:
-                                    curtag += x
-
-                        else: # otherwise just consuming the entire thing
-                            grabber.back()
-                            while True:
-                                if grabber.next() == "*":
-                                    if grabber.next() == "/":
-                                        break
-
-                    else:
-                        raise ValueError("failed to parse result type or function name at '" + grabber.line + "'")
-
+                    parse_comment(grabber, tags, curve_nesting or angle_nesting)
 
                 elif x == "<": # deal with templates.
                     angle_nesting += 1
@@ -209,6 +228,8 @@ def parse_cpp_file(path: str, all_functions: dict):
                     if curve_nesting == 0:
                         if angle_nesting != 0:
                             raise ValueError("imbalanced angle brackets at '" + grabber.line + "'")
+                        if current == "": # e.g., if there's a space between the final argument name and ')'.
+                            current = chunks.pop()
                         all_args.append(CppArgument.create(current, chunks, tags))
                         break
                     curve_nesting -= 1
@@ -218,6 +239,8 @@ def parse_cpp_file(path: str, all_functions: dict):
                     if curve_nesting or angle_nesting:
                         current += x
                     else:
+                        if current == "":
+                            current = chunks.pop()
                         all_args.append(CppArgument.create(current, chunks, tags))
                         current = ""
                         chunks = []
@@ -242,5 +265,8 @@ def parse_cpp_exports(srcdir : str):
     for p in os.listdir(srcdir):
         if not p.endswith(".cpp"):
             continue
-        parse_cpp_file(os.path.join(srcdir, p), all_functions)
+        try: 
+            parse_cpp_file(os.path.join(srcdir, p), all_functions)
+        except Exception as exc:
+            raise ValueError("failed to parse '" + p + "'") from exc
     return all_functions
