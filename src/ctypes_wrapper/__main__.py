@@ -16,7 +16,7 @@ def find_cpp_files(location, found):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog = "ctypes_wrapper",
+        prog = "ctypes-wrapper",
         description="""This script runs through a directory of C++ source files and pulls out all function definitions marked with an `// [[export]]` header. 
 It then creates wrapper files in C++ and Python to bind the exported functions with correct types and exception handling. 
 This mimics the behavior of `Rcpp::compile()`, which does the same thing for C++ bindings in R packages."""
