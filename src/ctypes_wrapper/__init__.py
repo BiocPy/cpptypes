@@ -16,3 +16,4 @@ finally:
     del version, PackageNotFoundError
 
 from .parse_cpp_exports import CppType, CppArgument, parse_cpp_exports
+from .create_cpp_bindings import create_cpp_bindings
