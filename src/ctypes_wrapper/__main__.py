@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 
 import argparse
-
-import ctypes_wrapper as cw
 import os
+
+from .parse_cpp_exports import parse_cpp_exports
+from .create_cpp_bindings import create_cpp_bindings
+from .create_py_bindings import create_py_bindings
 
 def find_cpp_files(location, found):
     for f in os.scandir(location):
@@ -12,8 +14,9 @@ def find_cpp_files(location, found):
         elif f.path.lower().endswith(".cpp") or f.path.lower().endswith(".cc"):
             found.append(f.path)
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
+        prog = "ctypes_wrapper",
         description="""This script runs through a directory of C++ source files and pulls out all function definitions marked with an `// [[export]]` header. 
 It then creates wrapper files in C++ and Python to bind the exported functions with correct types and exception handling. 
 This mimics the behavior of `Rcpp::compile()`, which does the same thing for C++ bindings in R packages."""
@@ -50,10 +53,6 @@ This mimics the behavior of `Rcpp::compile()`, which does the same thing for C++
     all_files = []
     find_cpp_files(cmd_args.srcdir, all_files)
 
-    all_functions = cw.parse_cpp_exports(all_files)
-    cw.create_cpp_bindings(all_functions, cmd_args.cpppath)
-    cw.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
-
-
-if __name__ == "__main__":
-    main()
+    all_functions = parse_cpp_exports(all_files)
+    create_cpp_bindings(all_functions, cmd_args.cpppath)
+    create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
