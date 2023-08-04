@@ -2,14 +2,12 @@
 
 import argparse
 
-import ctypes_wrapper.create_cpp_bindings as c1
-import ctypes_wrapper.create_py_bindings as c2
-import ctypes_wrapper.parse_cpp_exports as p1
+import ctypes_wrapper as cw
 import os
 
 def find_cpp_files(location, found):
-    for f in os.listdir(location):
-        if f.isdir():
+    for f in os.scandir(location):
+        if f.is_dir():
             find_cpp_files(f.path, found)
         elif f.path.lower().endswith(".cpp") or f.path.lower().endswith(".cc"):
             found.append(f.path)
@@ -52,9 +50,9 @@ This mimics the behavior of `Rcpp::compile()`, which does the same thing for C++
     all_files = []
     find_cpp_files(cmd_args.srcdir, all_files)
 
-    all_functions = p1.parse_cpp_exports(all_files)
-    c1.create_cpp_bindings(all_functions, cmd_args.cpppath)
-    c2.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
+    all_functions = cw.parse_cpp_exports(all_files)
+    cw.create_cpp_bindings(all_functions, cmd_args.cpppath)
+    cw.create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
 
 
 if __name__ == "__main__":
