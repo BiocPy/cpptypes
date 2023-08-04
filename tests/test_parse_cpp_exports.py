@@ -48,6 +48,23 @@ int foobar(X x, const YYY y, const long double* z, char*** aaron, const char* co
     assert args[4].type.base_type == "char"
     assert args[4].type.pointer_level == 2
 
+    # Just some basic pointers here and there.
+    tmp = dump_str_to_file("""
+//[[export]]
+int* empty() {
+    return NULL
+}""")
+
+    output = cw.parse_cpp_exports([tmp])
+    assert "empty" in output
+    res, args = output["empty"]
+
+    assert res.full_type == "int*"
+    assert res.base_type == "int"
+    assert res.pointer_level == 1
+
+    assert len(args) == 0
+
 def test_parse_cpp_exports_whitespace():
     # Add or remove whitespace all over the place.
     tmp = dump_str_to_file("""
@@ -96,7 +113,9 @@ def test_parse_cpp_exports_cpp():
 //[[export]]
 std::vector<decltype(bar)>foobar( decltype(FOO)x, const std::list<std::vector<int> >& y , std::map<int, 
     char**> z, // adding some extra whitespace and C++-style comments!
-    std::vector<double>&aaron, const std::vector<char>*becky) {
+    std::vector<double>&aaron, const std::vector<char>*becky,
+    decltype(a/b) div // seeing what happens if we add a '/' sign outside of a comment.
+    ) {
     return 1
 }""")
 
@@ -138,7 +157,7 @@ def test_parse_cpp_exports_tags():
     tmp = dump_str_to_file("""
 //[[export]]
 unsigned short/** asd */ foobar/**goody*/(/**whee*/int x,
-    const char/**numpy*/* y , long /* not a tag */ long z, double* /** multiple tags here */ aaron, char becky/** yay*/,
+    const char/**numpy*/* y , long /* not a tag */ long z, double* /** multiple tags here */ aaron, char becky/** yay imavoid* */,
     std::vector</** asdsad */ int> catherine /* non-base-level tags are ignored, as is this comment. */) {
     return 1
 }""")
@@ -180,7 +199,7 @@ unsigned short/** asd */ foobar/**goody*/(/**whee*/int x,
     assert args[4].type.full_type == "char"
     assert args[4].type.base_type == "char"
     assert args[4].type.pointer_level == 0 
-    assert ["yay"] == list(args[4].type.tags)
+    assert ["imavoid*", "yay"] == sorted(args[4].type.tags)
 
     assert args[5].name == "catherine"
     assert args[5].type.full_type == "std::vector<int>"
@@ -188,3 +207,27 @@ unsigned short/** asd */ foobar/**goody*/(/**whee*/int x,
     assert args[5].type.pointer_level == 0
     assert len(args[5].type.tags) == 0
 
+def test_parse_cpp_exports_failed():
+    tmp = dump_str_to_file("""
+//[[export]]
+int foobar(X x, const YYY y, const long double* z, char*** aaron,""")
+
+    err = None
+    try:
+        cw.parse_cpp_exports([tmp])
+    except Exception as exc:
+        err = exc
+    assert err is not None
+    assert str(err.__cause__).startswith("reached end of the file")
+
+    tmp = dump_str_to_file("""
+//[[export]]
+int foobar(X x, const std::vector<int> > y,""")
+
+    err = None
+    try:
+        cw.parse_cpp_exports([tmp])
+    except Exception as exc:
+        err = exc
+    assert err is not None
+    assert str(err.__cause__).startswith("imbalanced angle brackets")

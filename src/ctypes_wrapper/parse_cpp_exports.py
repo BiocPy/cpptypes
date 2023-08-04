@@ -73,9 +73,6 @@ class ExportTraverser:
         self.position += 1
         return self.line[old]
 
-    def get(self):
-        return self.line[self.position]
-
     def back(self):  # this can only be called once after calling next().
         self.position -= 1
 
@@ -93,6 +90,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
     tags = []
     angle_nesting = 0
     curve_nesting = 0
+    finished = False
 
     while True:
         x = grabber.next()
@@ -113,7 +111,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
                         if grabber.next() == "\n":
                             break
 
-                elif x == "*":
+                else:
                     x = grabber.next()
 
                     # We're inside a tag-enabled comment at the base nesting level, so we need to parse the tags.
@@ -145,9 +143,6 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
                                 if grabber.next() == "/":
                                     break
 
-                else:
-                    raise ValueError("failed to parse comment at '" + grabber.line + "'")
-
             else: 
                 grabber.back()
                 current += x
@@ -169,7 +164,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
                 current += x
             else:
                 if curve_nesting == 0 and angle_nesting == 0:
-                    if current == "":  # e.g., if there's a space between the name and '('.
+                    if current == "" and len(chunks):  # e.g., if there's a space between the name and '('.
                         current = chunks.pop()
                     break
                 curve_nesting += 1
@@ -177,9 +172,9 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
 
         elif x == ")":
             if as_argument and not curve_nesting and not angle_nesting:
-                if current == "":  # e.g., if there's a space between the final argument name and ')'.
+                if current == "" and len(chunks):  # e.g., if there's a space between the final argument name and ')'.
                     current = chunks.pop()
-                grabber.back() # move back one so that grabber.get() will return ')'.
+                finished = True
                 break
 
             if curve_nesting == 0:
@@ -193,7 +188,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
                 if curve_nesting or angle_nesting:
                     current += x
                 else:
-                    if current == "":
+                    if current == "" and len(chunks):
                         current = chunks.pop()
                     break
             else:
@@ -209,7 +204,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
         else:
             current += x
 
-    return current, create_type(chunks, tags)
+    return current, create_type(chunks, tags), finished
 
 def parse_cpp_file(path: str, all_functions: dict):
     with open(path, "r") as handle:
@@ -223,12 +218,13 @@ def parse_cpp_file(path: str, all_functions: dict):
 
             grabber = ExportTraverser(handle)
 
-            funname, restype = parse_component(grabber, False)
+            funname, restype, finished = parse_component(grabber, False)
 
             all_args = []
-            while grabber.get() != ")":
-                name, type = parse_component(grabber, True)
-                all_args.append(CppArgument(name, type))
+            while not finished:
+                name, argtype, finished = parse_component(grabber, True)
+                if name: # avoid adding an empty argument.
+                    all_args.append(CppArgument(name, argtype))
 
             all_functions[funname] = (restype, all_args)
 
