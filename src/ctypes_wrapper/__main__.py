@@ -14,7 +14,7 @@ def find_cpp_files(location, found):
         elif f.path.lower().endswith(".cpp") or f.path.lower().endswith(".cc"):
             found.append(f.path)
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         prog = "ctypes-wrapper",
         description="""This script runs through a directory of C++ source files and pulls out all function definitions marked with an `// [[export]]` header. 
@@ -56,3 +56,7 @@ This mimics the behavior of `Rcpp::compile()`, which does the same thing for C++
     all_functions = parse_cpp_exports(all_files)
     create_cpp_bindings(all_functions, cmd_args.cpppath)
     create_py_bindings(all_functions, cmd_args.pypath, cmd_args.dllname)
+
+if __name__ == "__main__":
+    main()
+
