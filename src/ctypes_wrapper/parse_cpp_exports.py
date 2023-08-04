@@ -38,7 +38,7 @@ def create_type(fragments: list[str], tags: set[str]):
         if x == "*" or x == "&":
             full_out += x
         else:
-            if full_out:
+            if full_out and full_out[-1] != "<" and full_out[-1] != "(":
                 full_out += " "
             full_out += x
 
@@ -99,7 +99,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
 
         if x.isspace():
             current = add_to_type_fragment(current, chunks, curve_nesting or angle_nesting)
-            if current:
+            if current and current[-1] != "<" and current[-1] != "(" and current[-1] != " ":
                 current += " "
 
         elif x == "/":
@@ -117,7 +117,7 @@ def parse_component(grabber: ExportTraverser, as_argument: bool):
                     x = grabber.next()
 
                     # We're inside a tag-enabled comment at the base nesting level, so we need to parse the tags.
-                    if x == "*" and not nested:
+                    if x == "*" and not curve_nesting and not angle_nesting:
                         curtag = ""
                         while True:
                             x = grabber.next()
