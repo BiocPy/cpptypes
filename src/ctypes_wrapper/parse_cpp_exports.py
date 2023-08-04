@@ -4,16 +4,35 @@ import re
 export_regex = re.compile("^\\s*//\\s*\\[\\[export\\]\\]")
 comment_regex = re.compile("//")
 
-
 class CppType:
-    def __init__(self, full_type, base_type, pointer_level, tags):
+    """C++ type, as parsed from the source file.
+
+    Attributes:
+        full_type (str): Full type name, including `const` qualifiers and pointers.
+        base_type (str): Base type after removing all qualifiers and pointers.
+        pointer_level (int): Number of pointer indirections.
+        tags (set[str]): Additional user-supplied tags.
+    """
+
+    def __init__(self, full_type: str, base_type: str, pointer_level: int, tags: set[str]):
+        """Construct a `CppType` instance from the supplied properties."""
         self.full_type = full_type
         self.base_type = base_type
         self.pointer_level = pointer_level
         self.tags = set(tags)
 
     @classmethod
-    def create(cls, fragments, tags):
+    def create(cls, fragments: list[str], tags: set[str]):
+        """Create a `CppType` instance from text fragments.
+
+        Args:
+            fragments (list[str]): List of strings containing the type name
+                after splitting by whitespace.
+            tags (set[str]): Additional user-supplied tags.
+
+        Returns:
+            A `CppType` instance.
+        """
         base_type = []
         pointers = 0
         right_pointers = False
@@ -42,13 +61,31 @@ class CppType:
 
 
 class CppArgument:
+    """Argument to a C++ function, as parsed from the source file.
+
+    Attributes:
+        name (str): Name of the argument.
+        type (CppType): The type of the argument.
+    """
+
     def __init__(self, name, type):
+        """Construct a `CppArgument` instance from the supplied properties."""
         self.name = name
         self.type = type
 
     @classmethod
-    def create(cls, name, fragments, tags):
-        return cls(name, CppType.create(fragments, tags))
+    def create(cls, name: str, *args):
+        """Create a `CppType` instance from text fragments.
+
+        Args:
+            name (str): Name of the argument.
+            *args: Further arguments to pass to `CppType.create` for creating
+                the argument type. 
+
+        Returns:
+            A `CppArgument` instance.
+        """
+        return cls(name, CppType.create(*args))
 
 
 class ExportTraverser:
@@ -271,20 +308,18 @@ def parse_cpp_file(path: str, all_functions: dict):
             all_functions[funname] = (restype, all_args)
 
 
-def parse_cpp_exports(srcdir: str):
+def parse_cpp_exports(files: list[str]) -> dict[str, tuple[CppType, list[CppArgument]]]:
     """Parse C++ source files for tagged exports.
 
     Args:
-        srcdir (str): Path to a directory of C++ source files.
+        files (list[str]): Paths of C++ source files to parse. 
 
     Returns:
         Dict where keys are exported function names and values
         are a tuple of (return type, argument list).
     """
     all_functions = {}
-    for p in os.listdir(srcdir):
-        if not p.endswith(".cpp"):
-            continue
+    for p in files:
         try:
             parse_cpp_file(os.path.join(srcdir, p), all_functions)
         except Exception as exc:
