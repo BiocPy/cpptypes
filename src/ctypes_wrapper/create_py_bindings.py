@@ -1,12 +1,10 @@
 import re
-directly_usable = set([ "int", "char", "float", "double", "long", "short", "size_t", "ssize_t", "bool" ])
+
+directly_usable = set(["int", "char", "float", "double", "long", "short", "size_t", "ssize_t", "bool"])
 fixed_regex = re.compile("^(u)?int[0-9]+_t$")
 ll_regex = re.compile("^long\\s+long$")
 ld_regex = re.compile("^long\\s+double$")
 signed_char_regex = re.compile("^(un)?signed\\s+char$")
-char_p_regex = re.compile("^char\\s*\*$")
-void_p_regex = re.compile("^void\\s*\*$")
-const_regex = re.compile("^const\\s+")
 signed_regex = re.compile("^signed\\s+")
 unsigned_regex = re.compile("^unsigned\\s+")
 
@@ -24,22 +22,25 @@ def convert_base_type(name):
     elif signed_char_regex.match(name):
         if name.startswith("unsigned"):
             return "ct.c_ubyte"
-        elif name.startswith("signed"):
+        else:
             return "ct.c_byte"
 
     # define pointer offsets.
-    elif void_p_regex.match(name) or name == "uintptr_t" or name == "intptr_t":
+    elif name == "uintptr_t" or name == "intptr_t":
         return "ct.c_void_p"
 
     # Other signed/unsigned versions of non-pointer types.
     elif signed_regex.match(name):
         return convert_base_type(name[7:].lstrip())
     elif unsigned_regex.match(name):
-        return convert_base_type(name[9:].lstrip())
+        out = convert_base_type(name[9:].lstrip())
+        return out[:5] + "u" + out[5:]
 
     raise ValueError("don't yet know how to deal with type '" + name + "'")
 
-unsupported_pointer_bases = set([ "uintptr_t", "intptr_t", "void" ])
+
+unsupported_pointer_bases = set(["uintptr_t", "intptr_t", "void"])
+
 
 def map_cpp_type(x):
     if x.pointer_level:
@@ -58,7 +59,7 @@ def map_cpp_type(x):
             core = "ct.c_char_p"
 
         else:
-            try: 
+            try:
                 core = convert_base_type(x.base_type)
             except Exception as exc:
                 raise ValueError("failed to parse type '" + x.full_type + "'") from exc
@@ -66,24 +67,21 @@ def map_cpp_type(x):
         for i in range(pl):
             core = "ct.POINTER(" + core + ")"
         return core
-        
+
     else:
-        try: 
+        try:
             return convert_base_type(x.base_type)
         except Exception as exc:
             raise ValueError("failed to parse type '" + x.full_type + "'") from exc
 
-def create_py_bindings(
-    all_functions : dict, 
-    output_path: str, 
-    dll_prefix: str
-):
+
+def create_py_bindings(all_functions: dict, output_path: str, dll_prefix: str):
     """Create the Python bindings for exported functions.
 
     Args:
         all_functions (dict): Dictionary as produced by `parse_cpp_exports`.
         output_path (str): Path to store the output Python bindings.
-        dll_prefix (str): Prefix of the DLL for the compiled C++ code. 
+        dll_prefix (str): Prefix of the DLL for the compiled C++ code.
 
     Returns:
         A file is created at `output_path`. Nothing is returned.
@@ -176,9 +174,13 @@ def np2ct(x, expected, contiguous=True):
                 argnames2 = []
                 for x in args:
                     if with_numpy and "numpy" in x.type.tags:
-                        args = ", np." 
+                        args = ", np."
                         if fixed_regex.match(x.type.base_type):
                             args += x.type.base_type[:-2]
+                        elif x.type.base_type == "double":
+                            args += "float64"
+                        elif x.type.base_type == "float":
+                            args += "float32"
                         else:
                             args += x.type.base_type
                         if "non_contig" in x.type.tags:
@@ -193,4 +195,3 @@ def np2ct(x, expected, contiguous=True):
     return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames2) + """)""")
 
     return
-

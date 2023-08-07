@@ -1,4 +1,4 @@
-def create_cpp_bindings(all_functions : dict, output_path: str):
+def create_cpp_bindings(all_functions: dict, output_path: str):
     """Create the C++ bindings for exported functions.
 
     Args:
@@ -32,13 +32,15 @@ static char* copy_error_message(const char* original) {
     return copy;
 }""")
 
-        externC = ["""PYAPI void free_error_message(char** msg) {
+        externC = [
+            """PYAPI void free_error_message(char** msg) {
     delete [] *msg;
-}"""]
+}"""
+        ]
 
         for k in all_function_names:
             restype, args = all_functions[k]
-
+            
             types_only = [x.type.full_type for x in args]
             handle.write("\n\n" + restype.full_type + " " + k + "(" + ", ".join(types_only) + ");")
 
@@ -58,7 +60,7 @@ static char* copy_error_message(const char* original) {
                 else:
                     init_call += "0;"
                 fun_call = "output = " + k
-                ret_call = "\n" + " " * 4 + "return output;" 
+                ret_call = "\n" + " " * 4 + "return output;"
 
             externC.append("PYAPI " + restype.full_type + " py_" + k + "(" + ", ".join(all_args) + ") {" + init_call + """
     try {
@@ -70,12 +72,12 @@ static char* copy_error_message(const char* original) {
         *errcode = 1;
         *errmsg = copy_error_message("unknown C++ exception");
     }""" + ret_call + """
-}""")
+}"""
+            )
 
-        handle.write("\n\nextern \"C\" {")
+        handle.write('\n\nextern "C" {')
         for cmd in externC:
             handle.write("\n\n" + cmd)
-        handle.write("\n\n}\n")    
+        handle.write("\n\n}\n")
 
     return
-
