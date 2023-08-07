@@ -21,6 +21,14 @@ Specifically, we fill `restype` and `argtypes` based on the C++ function signatu
 We were inspired by the `Rcpp::compile()` function, which does the same for C++ code in R packages.
 The aim is to avoid errors from manual binding when developing **ctypes**-based Python packages.
 
+## Install
+
+**cpptypes** is published to [PyPI](https://pypi.org/project/cpptypes/):
+
+```sh
+pip install cpptypes
+```
+
 ## Quick start
 
 To use, add an `// [[export]]` tag above the C++ function to be exported to Python.
@@ -35,8 +43,8 @@ int multiply(int a, double b) {
 We assume that all C++ code is located within a single directory `src`.
 We then run the [`wrap.py`](wrap.py) script:
 
-```cpp
-./wrap.py src/ --py bindings.py --cpp bindings.cpp
+```sh
+cpptypes src/ --py bindings.py --cpp bindings.cpp
 ```
 
 Developers should add `bindings.cpp` to the `Extension` sources in their `setup.py`.
