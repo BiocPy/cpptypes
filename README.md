@@ -4,13 +4,15 @@
 [![Built Status](https://api.cirrus-ci.com/github/<USER>/cpptypes.svg?branch=main)](https://cirrus-ci.com/github/<USER>/cpptypes)
 [![ReadTheDocs](https://readthedocs.org/projects/cpptypes/badge/?version=latest)](https://cpptypes.readthedocs.io/en/stable/)
 [![Coveralls](https://img.shields.io/coveralls/github/<USER>/cpptypes/main.svg)](https://coveralls.io/r/<USER>/cpptypes)
-[![PyPI-Server](https://img.shields.io/pypi/v/cpptypes.svg)](https://pypi.org/project/cpptypes/)
 [![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/cpptypes.svg)](https://anaconda.org/conda-forge/cpptypes)
 [![Monthly Downloads](https://pepy.tech/badge/cpptypes/month)](https://pepy.tech/project/cpptypes)
 [![Twitter](https://img.shields.io/twitter/url/http/shields.io.svg?style=social&label=Twitter)](https://twitter.com/cpptypes)
 -->
 
 [![Project generated with PyScaffold](https://img.shields.io/badge/-PyScaffold-005CA0?logo=pyscaffold)](https://pyscaffold.org/)
+[![PyPI-Server](https://img.shields.io/pypi/v/cpptypes.svg)](https://pypi.org/project/cpptypes/)
+![Unit tests](https://github.com/BiocPy/cpptypes/actions/workflows/pypi-test.yml/badge.svg)
+
 
 # Generate ctypes wrappers
 
