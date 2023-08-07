@@ -1,5 +1,5 @@
 """
-    Setup file for ctypes-wrapper.
+    Setup file for cpptypes.
     Use setup.cfg to configure your project.
 
     This file was generated with PyScaffold 4.5.

@@ -1,5 +1,5 @@
-import ctypes_wrapper as cw
-from ctypes_wrapper.create_py_bindings import map_cpp_type, create_py_bindings
+import cpptypes as cw
+from cpptypes.create_py_bindings import map_cpp_type, create_py_bindings
 import tempfile
 
 def test_map_cpp_type():

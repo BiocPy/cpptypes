@@ -1,4 +1,4 @@
-import ctypes_wrapper as cw
+import cpptypes as cw
 import tempfile
 
 def dump_str_to_file(content):
