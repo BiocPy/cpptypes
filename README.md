@@ -41,7 +41,7 @@ int multiply(int a, double b) {
 ```
 
 We assume that all C++ code is located within a single directory `src`.
-We then run the [`wrap.py`](wrap.py) script:
+We then run the [`cpptypes`](./src/cpptypes/__main__.py) cli provided by this package:
 
 ```sh
 cpptypes src/ --py bindings.py --cpp bindings.cpp
