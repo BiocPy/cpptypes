@@ -18,6 +18,7 @@ def create_cpp_bindings(all_functions: dict, output_path: str):
 
 #include <cstring>
 #include <stdexcept>
+#include <cstdint>
 
 #ifdef _WIN32
 #define PYAPI __declspec(dllexport)
