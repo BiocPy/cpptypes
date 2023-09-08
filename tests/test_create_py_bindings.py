@@ -99,11 +99,11 @@ def test_create_py_bindings():
 
             elif line == "def cocoa_best_function(chino, rize, midori):":
                 found_cocoa_def = True
-                assert handle.readline().strip() == "return catch_errors(lib.py_cocoa_best_function)(np2ct(chino, np.float64), rize, midori)"
+                assert handle.readline().strip() == "return _catch_errors(lib.py_cocoa_best_function)(_np2ct(chino, np.float64), rize, midori)"
 
             elif line == "def syaro_second_function(chiya, moka, maya, megu):":
                 found_syaro_def = True
-                assert handle.readline().strip() == "return catch_errors(lib.py_syaro_second_function)(chiya, moka, np2ct(maya, np.int32, contiguous=False), np2ct(megu, np.float32))"
+                assert handle.readline().strip() == "return _catch_errors(lib.py_syaro_second_function)(chiya, moka, _np2ct(maya, np.int32, contiguous=False), _np2ct(megu, np.float32))"
 
     assert found_cocoa_types
     assert found_syaro_types
@@ -153,11 +153,11 @@ def test_create_py_bindings():
 
             elif line == "def cocoa_best_function(chino, rize, midori):":
                 found_cocoa_def = True
-                assert handle.readline().strip() == "return catch_errors(lib.py_cocoa_best_function)(chino, rize, midori)"
+                assert handle.readline().strip() == "return _catch_errors(lib.py_cocoa_best_function)(chino, rize, midori)"
 
             elif line == "def syaro_second_function(chiya, moka, maya, megu):":
                 found_syaro_def = True
-                assert handle.readline().strip() == "return catch_errors(lib.py_syaro_second_function)(chiya, moka, maya, megu)"
+                assert handle.readline().strip() == "return _catch_errors(lib.py_syaro_second_function)(chiya, moka, maya, megu)"
 
     assert found_cocoa_types
     assert found_syaro_types

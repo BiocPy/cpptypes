@@ -103,8 +103,13 @@ def create_py_bindings(all_functions: dict, output_path: str, dll_prefix: str):
 
 import os
 import ctypes as ct
+""")
+        if with_numpy:
+            handle.write("""import numpy as np
+""")
 
-def catch_errors(f):
+        handle.write("""
+def _catch_errors(f):
     def wrapper(*args):
         errcode = ct.c_int32(0)
         errmsg = ct.c_char_p(0)
@@ -133,8 +138,7 @@ lib.free_error_message.argtypes = [ ct.POINTER(ct.c_char_p) ]""")
         if with_numpy:
             handle.write("""
 
-import numpy as np
-def np2ct(x, expected, contiguous=True):
+def _np2ct(x, expected, contiguous=True):
     if not isinstance(x, np.ndarray):
         raise ValueError('expected a NumPy array')
     if x.dtype != expected:
@@ -185,13 +189,13 @@ def np2ct(x, expected, contiguous=True):
                             args += x.type.base_type
                         if "non_contig" in x.type.tags:
                             args += ", contiguous=False"
-                        argnames2.append("np2ct(" + x.name + args + ")")
+                        argnames2.append("_np2ct(" + x.name + args + ")")
                     else:
                         argnames2.append(x.name)
             else:
                 argnames2 = argnames
 
             handle.write("\n\ndef " + k + "(" + ", ".join(argnames) + """):
-    return catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames2) + """)""")
+    return _catch_errors(lib.py_""" + k + ")(" + ", ".join(argnames2) + """)""")
 
     return
